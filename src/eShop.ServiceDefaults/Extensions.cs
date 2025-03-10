@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Logs;
-using OpenTelemetry.Exporter.Prometheus;
 using System.Diagnostics;
 
 

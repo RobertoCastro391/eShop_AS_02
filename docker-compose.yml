@@ -32,8 +32,11 @@ services:
       - "3000:3000"  # UI do Grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
     volumes:
       - grafana-storage:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning  # Auto-provision dashboards
+      - ./grafana/dashboards:/var/lib/grafana/dashboards  # Store JSON dashboards
 
   # jaeger:
   #   image: jaegertracing/all-in-one:latest
