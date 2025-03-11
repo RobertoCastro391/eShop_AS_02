@@ -2,13 +2,19 @@
 using eShop.Basket.API.Repositories;
 using eShop.Basket.API.Extensions;
 using eShop.Basket.API.Model;
+using System.Diagnostics.Metrics;
 
 namespace eShop.Basket.API.Grpc;
 
 public class BasketService(
     IBasketRepository repository,
-    ILogger<BasketService> logger) : Basket.BasketBase
+    ILogger<BasketService> logger,
+    Meter meter) : Basket.BasketBase
 {
+
+    private readonly Counter<long> BasketCreatedCounter =
+        meter.CreateCounter<long>("basket_created_count", description: "Number of baskets created or updated.");
+
     [AllowAnonymous]
     public override async Task<CustomerBasketResponse> GetBasket(GetBasketRequest request, ServerCallContext context)
     {
@@ -46,11 +52,21 @@ public class BasketService(
             logger.LogDebug("Begin UpdateBasket call from method {Method} for basket id {Id}", context.Method, userId);
         }
 
+        // Check if the user already has a basket
+        var existingBasket = await repository.GetBasketAsync(userId);
+
         var customerBasket = MapToCustomerBasket(userId, request);
         var response = await repository.UpdateBasketAsync(customerBasket);
         if (response is null)
         {
             ThrowBasketDoesNotExist(userId);
+        }
+
+        // If there was no existing basket, this is a new basket → Increment the counter
+        if (existingBasket is null)
+        {
+            BasketCreatedCounter.Add(1, new KeyValuePair<string, object>("userId", userId));
+            logger.LogInformation("New basket created for user");
         }
 
         return MapToCustomerBasketResponse(response);

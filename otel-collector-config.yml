@@ -2,16 +2,28 @@
   otlp:
     protocols:
       grpc:
-        endpoint: "0.0.0.0:4317"  # ✅ Allow external connections
+        endpoint: "0.0.0.0:4317"  # Allow external connections
       http:
         endpoint: "0.0.0.0:4318"
 
 exporters:
+  debug:
+    verbosity: detailed
+
+  otlp:
+    endpoint: "jaeger:4317"
+    tls:
+        insecure: true
+
   prometheus:
     endpoint: "0.0.0.0:9464"
 
 service:
   pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp, debug]
+        
     metrics:
       receivers: [otlp]
-      exporters: [prometheus]
+      exporters: [prometheus, debug]

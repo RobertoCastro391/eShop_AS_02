@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
+﻿using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using Microsoft.AspNetCore.Http.HttpResults;
 using CardType = eShop.Ordering.API.Application.Queries.CardType;
 using Order = eShop.Ordering.API.Application.Queries.Order;
 
@@ -118,11 +120,40 @@ public static class OrdersApi
     public static async Task<Results<Ok, BadRequest<string>>> CreateOrderAsync(
         [FromHeader(Name = "x-requestid")] Guid requestId,
         CreateOrderRequest request,
-        [AsParameters] OrderServices services)
+        [AsParameters] OrderServices services,
+        Meter meter)
     {
-        
+
+        //Create processing time histogram
+        var orderProcessingTimeHistogram = meter.CreateHistogram<double>(
+            "order_processing_duration_ms",
+            unit: "ms",
+            description: "Time taken to process an order from request to completion."
+        );
+
+        // Count Number of orders placed
+        var orderPlacedCounter = meter.CreateCounter<long>(
+            "order_placed_total",
+            description: "Total number of successfully placed orders."
+        );
+
+        // Count Number of failed orders
+        var orderFailedCounter = meter.CreateCounter<long>(
+            "order_failed_total",
+            description: "Total number of failed order attempts."
+        );
+
+        // Error rate histogram
+        var orderErrorRateHistogram = meter.CreateHistogram<double>(
+            "order_error_rate_percent",
+            unit: "percent",
+            description: "Percentage of orders that encountered an error."
+        );
+
+        var stopwatch = Stopwatch.StartNew(); //Start measuring time
+
         //mask the credit card number
-        
+
         services.Logger.LogInformation(
             "Sending command: {CommandName} - {IdProperty}: {CommandId}",
             request.GetGenericTypeName(),
@@ -154,12 +185,18 @@ public static class OrdersApi
 
             var result = await services.Mediator.Send(requestCreateOrder);
 
+            stopwatch.Stop(); //Stop measuring time
+
             if (result)
             {
+                orderProcessingTimeHistogram.Record(stopwatch.ElapsedMilliseconds);
+                orderPlacedCounter.Add(1, new KeyValuePair<string, object>("userId", request.UserId));
                 services.Logger.LogInformation("CreateOrderCommand succeeded - RequestId: {RequestId}", requestId);
             }
             else
             {
+                orderErrorRateHistogram.Record(100);
+                orderFailedCounter.Add(1, new KeyValuePair<string, object>("userId", request.UserId));
                 services.Logger.LogWarning("CreateOrderCommand failed - RequestId: {RequestId}", requestId);
             }
 

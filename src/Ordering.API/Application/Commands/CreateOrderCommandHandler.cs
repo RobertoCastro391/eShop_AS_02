@@ -19,11 +19,9 @@ public class CreateOrderCommandHandler
     private readonly IOrderingIntegrationEventService _orderingIntegrationEventService;
     private readonly ILogger<CreateOrderCommandHandler> _logger;
 
-    // ✅ Define metrics inside the class
-    private readonly Counter<long> _orderPlacedCounter;
-    private readonly Counter<long> _orderFailedCounter;
-    private readonly Histogram<double> _orderProcessingTimeHistogram;
-    private readonly Histogram<double> _orderErrorRateHistogram;
+    //Define metrics inside the class
+    private readonly Histogram<double> _orderValueHistogram;
+    private readonly Counter<long> _totalEurosMade;
 
     // Using DI to inject infrastructure persistence Repositories
     public CreateOrderCommandHandler(IMediator mediator,
@@ -39,43 +37,15 @@ public class CreateOrderCommandHandler
         _orderingIntegrationEventService = orderingIntegrationEventService ?? throw new ArgumentNullException(nameof(orderingIntegrationEventService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
-        _orderPlacedCounter = meter.CreateCounter<long>("order_placed_total", description: "Total number of successfully placed orders.");
-        _orderFailedCounter = meter.CreateCounter<long>("order_failed_total", description: "Total number of failed order attempts.");
-        _orderProcessingTimeHistogram = meter.CreateHistogram<double>("order_processing_duration_ms", "ms", "Time taken to process an order.");
-        _orderErrorRateHistogram = meter.CreateHistogram<double>("order_error_rate_percent", "percent", "Percentage of orders that encountered an error.");
+        _orderValueHistogram = meter.CreateHistogram<double>("average_order_value", "currency", "Average monetary value of placed orders.");
+        _totalEurosMade = meter.CreateCounter<long>("monetary_value_orders", "Total monetary value of orders");
     }
 
     public async Task<bool> Handle(CreateOrderCommand message, CancellationToken cancellationToken)
     {
-        //// Add Integration event to clean the basket
-        //var orderStartedIntegrationEvent = new OrderStartedIntegrationEvent(message.UserId);
-        //await _orderingIntegrationEventService.AddAndSaveEventAsync(orderStartedIntegrationEvent);
-
-        //// Add/Update the Buyer AggregateRoot
-        //// DDD patterns comment: Add child entities and value-objects through the Order Aggregate-Root
-        //// methods and constructor so validations, invariants and business logic 
-        //// make sure that consistency is preserved across the whole aggregate
-        //var address = new Address(message.Street, message.City, message.State, message.Country, message.ZipCode);
-        //var order = new Order(message.UserId, message.UserName, address, message.CardTypeId, message.CardNumber, message.CardSecurityNumber, message.CardHolderName, message.CardExpiration);
-
-        //foreach (var item in message.OrderItems)
-        //{
-        //    order.AddOrderItem(item.ProductId, item.ProductName, item.UnitPrice, item.Discount, item.PictureUrl, item.Units);
-        //}
-
-        //// ✅ Increment order placed count
-        //_logger.LogInformation("Incrementing Order Placed Counter");
-        //_orderPlacedCounter.Add(1, new KeyValuePair<string, object>("userId", message.UserId));
-        //_logger.LogInformation("Order Placed Counter Incremented");
-
-        //_logger.LogInformation("Creating Order - Order: {@Order}", order);
-        //_orderRepository.Add(order);
-
-        //return await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
         var stopwatch = Stopwatch.StartNew();
 
         Console.WriteLine("Processing order command started");
-
 
         try
         {
@@ -85,12 +55,16 @@ public class CreateOrderCommandHandler
             var address = new Address(message.Street, message.City, message.State, message.Country, message.ZipCode);
             var order = new Order(message.UserId, message.UserName, address, message.CardTypeId, message.CardNumber, message.CardSecurityNumber, message.CardHolderName, message.CardExpiration);
 
+            decimal orderValue = 0;
+            
             foreach (var item in message.OrderItems)
             {
                 order.AddOrderItem(item.ProductId, item.ProductName, item.UnitPrice, item.Discount, item.PictureUrl, item.Units);
+                orderValue = orderValue + (item.UnitPrice * item.Units);
             }
-
-            _orderPlacedCounter.Add(1, new KeyValuePair<string, object>("userId", message.UserId));
+            
+            _orderValueHistogram.Record((double)orderValue);
+            _totalEurosMade.Add((long)orderValue, new KeyValuePair<string, object>("userId", message.UserId));
             _logger.LogInformation("Order placed successfully.");
 
             _orderRepository.Add(order);
@@ -98,7 +72,6 @@ public class CreateOrderCommandHandler
             var success = await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
             stopwatch.Stop();
 
-            _orderProcessingTimeHistogram.Record(stopwatch.ElapsedMilliseconds);
             Console.WriteLine("Processing order command completed in: " + stopwatch.ElapsedMilliseconds);
            
             return success;
@@ -106,9 +79,6 @@ public class CreateOrderCommandHandler
         catch (Exception ex)
         {
             _logger.LogError(ex, "Order processing failed.");
-
-            _orderFailedCounter.Add(1);
-            _orderErrorRateHistogram.Record(100.0); // Increment error rate to 100% when failure occurs
             return false;
         }
     }
