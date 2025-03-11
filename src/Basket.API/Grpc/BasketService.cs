@@ -3,6 +3,8 @@ using eShop.Basket.API.Repositories;
 using eShop.Basket.API.Extensions;
 using eShop.Basket.API.Model;
 using System.Diagnostics.Metrics;
+using System.Diagnostics;
+using Grpc.Core;
 
 namespace eShop.Basket.API.Grpc;
 
@@ -12,13 +14,19 @@ public class BasketService(
     Meter meter) : Basket.BasketBase
 {
 
+    private static readonly ActivitySource ActivitySource = new("Basket.API");
+
     private readonly Counter<long> BasketCreatedCounter =
         meter.CreateCounter<long>("basket_created_count", description: "Number of baskets created or updated.");
 
     [AllowAnonymous]
     public override async Task<CustomerBasketResponse> GetBasket(GetBasketRequest request, ServerCallContext context)
     {
+        using var activity = ActivitySource.StartActivity("Get Basket");
+
         var userId = context.GetUserIdentity();
+        activity?.SetTag("user.id", userId);
+
         if (string.IsNullOrEmpty(userId))
         {
             return new();
@@ -41,7 +49,12 @@ public class BasketService(
 
     public override async Task<CustomerBasketResponse> UpdateBasket(UpdateBasketRequest request, ServerCallContext context)
     {
+        using var activity = ActivitySource.StartActivity("Update Basket");
+
         var userId = context.GetUserIdentity();
+        //activity?.SetTag("user.id", userId.Substring(0, 4) + '*');
+        activity?.SetTag("user.id", userId);
+
         if (string.IsNullOrEmpty(userId))
         {
             ThrowNotAuthenticated();
@@ -56,6 +69,14 @@ public class BasketService(
         var existingBasket = await repository.GetBasketAsync(userId);
 
         var customerBasket = MapToCustomerBasket(userId, request);
+
+        // Initialize the activity for saving the basket to the DB
+        using (var dbActivity = ActivitySource.StartActivity("Saving Basket to DB"))
+        {
+            dbActivity?.SetTag("db.system", "redis");
+            dbActivity?.SetTag("db.statement", "SET Basket");
+        }
+
         var response = await repository.UpdateBasketAsync(customerBasket);
         if (response is null)
         {
@@ -74,7 +95,11 @@ public class BasketService(
 
     public override async Task<DeleteBasketResponse> DeleteBasket(DeleteBasketRequest request, ServerCallContext context)
     {
+        using var activity = ActivitySource.StartActivity("Delete Basket");
+
         var userId = context.GetUserIdentity();
+        activity?.SetTag("user.id", userId);
+
         if (string.IsNullOrEmpty(userId))
         {
             ThrowNotAuthenticated();

@@ -6,6 +6,8 @@ using Order = eShop.Ordering.API.Application.Queries.Order;
 
 public static class OrdersApi
 {
+    private static readonly ActivitySource ActivitySource = new("OrderingService");
+
     public static RouteGroupBuilder MapOrdersApiV1(this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("api/orders").HasApiVersion(1.0);
@@ -123,6 +125,11 @@ public static class OrdersApi
         [AsParameters] OrderServices services,
         Meter meter)
     {
+        using var activity = ActivitySource.StartActivity("Processing Order");
+
+        activity?.SetTag("user.id", request.UserId);
+        activity?.SetTag("order.total", request.Items.Sum(i => i.Quantity));
+        activity?.SetTag("http.request_id", requestId.ToString());
 
         //Create processing time histogram
         var orderProcessingTimeHistogram = meter.CreateHistogram<double>(
@@ -186,6 +193,7 @@ public static class OrdersApi
             var result = await services.Mediator.Send(requestCreateOrder);
 
             stopwatch.Stop(); //Stop measuring time
+            activity?.SetTag("order.processing_time_ms", stopwatch.ElapsedMilliseconds);
 
             if (result)
             {
@@ -195,6 +203,7 @@ public static class OrdersApi
             }
             else
             {
+                activity?.SetStatus(ActivityStatusCode.Error);
                 orderErrorRateHistogram.Record(100);
                 orderFailedCounter.Add(1, new KeyValuePair<string, object>("userId", request.UserId));
                 services.Logger.LogWarning("CreateOrderCommand failed - RequestId: {RequestId}", requestId);
