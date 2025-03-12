@@ -1,4 +1,6 @@
-﻿namespace eShop.Ordering.API.Application.Commands;
+﻿using System.Diagnostics;
+
+namespace eShop.Ordering.API.Application.Commands;
 
 // Regular CommandHandler
 public class SetPaidOrderStatusCommandHandler : IRequestHandler<SetPaidOrderStatusCommand, bool>

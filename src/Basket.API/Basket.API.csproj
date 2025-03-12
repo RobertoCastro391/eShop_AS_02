@@ -7,6 +7,9 @@
   <ItemGroup>
     <PackageReference Include="Aspire.StackExchange.Redis" />
     <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.GrpcCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.GrpcNetClient" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" />
   </ItemGroup>
 
   <ItemGroup>

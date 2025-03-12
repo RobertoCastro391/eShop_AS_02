@@ -2,17 +2,34 @@
 using eShop.Basket.API.Repositories;
 using eShop.Basket.API.Extensions;
 using eShop.Basket.API.Model;
+using System.Diagnostics.Metrics;
+using System.Diagnostics;
+using Grpc.Core;
 
 namespace eShop.Basket.API.Grpc;
 
 public class BasketService(
     IBasketRepository repository,
-    ILogger<BasketService> logger) : Basket.BasketBase
+    ILogger<BasketService> logger,
+    Meter meter) : Basket.BasketBase
 {
+
+    private static readonly ActivitySource ActivitySource = new("Basket.API.BasketService");
+
+    private readonly Counter<long> BasketCreatedCounter =
+        meter.CreateCounter<long>("basket_created_count", description: "Number of baskets created or updated.");
+
     [AllowAnonymous]
     public override async Task<CustomerBasketResponse> GetBasket(GetBasketRequest request, ServerCallContext context)
     {
+        using var activity = ActivitySource.StartActivity("Get Basket");
+
         var userId = context.GetUserIdentity();
+        if (activity != null && userId != null)
+        {
+            activity?.SetTag("user.id", userId.Substring(0, 4) + "****");
+        }
+
         if (string.IsNullOrEmpty(userId))
         {
             return new();
@@ -20,7 +37,7 @@ public class BasketService(
 
         if (logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug("Begin GetBasketById call from method {Method} for basket id {Id}", context.Method, userId);
+            logger.LogDebug("Begin GetBasketById call from method {Method} for basket id {Id}", context.Method, userId.Substring(0,4) + "*****");
         }
 
         var data = await repository.GetBasketAsync(userId);
@@ -35,7 +52,10 @@ public class BasketService(
 
     public override async Task<CustomerBasketResponse> UpdateBasket(UpdateBasketRequest request, ServerCallContext context)
     {
+        using var activity = ActivitySource.StartActivity("Update Basket");
+
         var userId = context.GetUserIdentity();
+
         if (string.IsNullOrEmpty(userId))
         {
             ThrowNotAuthenticated();
@@ -43,14 +63,39 @@ public class BasketService(
 
         if (logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug("Begin UpdateBasket call from method {Method} for basket id {Id}", context.Method, userId);
+            logger.LogDebug("Begin UpdateBasket call from method {Method} for basket id {Id}", context.Method, userId.Substring(0, 4) + "*****");
         }
 
+        // Check if the user already has a basket
+        var existingBasket = await repository.GetBasketAsync(userId);
+
         var customerBasket = MapToCustomerBasket(userId, request);
+
+        // Initialize the activity for saving the basket to the DB
+        using (var dbActivity = ActivitySource.StartActivity("Saving Basket to DB"))
+        {
+            dbActivity?.SetTag("db.system", "redis");
+            dbActivity?.SetTag("db.statement", "SET Basket");
+        }
+
+
+        if (activity != null)
+        {
+            activity?.SetTag("user.id", userId.Substring(0, 4) + "****");
+            activity?.SetTag("items", customerBasket.Items);
+        }
+        
         var response = await repository.UpdateBasketAsync(customerBasket);
         if (response is null)
         {
             ThrowBasketDoesNotExist(userId);
+        }
+
+        // If there was no existing basket, this is a new basket → Increment the counter
+        if (existingBasket is null)
+        {
+            BasketCreatedCounter.Add(1, new KeyValuePair<string, object>("userId", userId.Substring(0, 4) + "*****"));
+            logger.LogInformation("New basket created for user");
         }
 
         return MapToCustomerBasketResponse(response);
@@ -58,7 +103,15 @@ public class BasketService(
 
     public override async Task<DeleteBasketResponse> DeleteBasket(DeleteBasketRequest request, ServerCallContext context)
     {
+        using var activity = ActivitySource.StartActivity("Delete Basket");
+
         var userId = context.GetUserIdentity();
+
+        if (activity != null)
+        {
+            activity?.SetTag("user.id", userId.Substring(0, 4) + "****");
+        }
+
         if (string.IsNullOrEmpty(userId))
         {
             ThrowNotAuthenticated();

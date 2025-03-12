@@ -5,9 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Logs;
+using System.Diagnostics;
+
 
 namespace eShop.ServiceDefaults;
 
@@ -61,7 +63,8 @@ public static partial class Extensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
-                    .AddMeter("Experimental.Microsoft.Extensions.AI");
+                    .AddMeter("Experimental.Microsoft.Extensions.AI")
+                    .AddPrometheusExporter();
             })
             .WithTracing(tracing =>
             {
@@ -84,7 +87,21 @@ public static partial class Extensions
 
     private static IHostApplicationBuilder AddOpenTelemetryExporters(this IHostApplicationBuilder builder)
     {
+        builder.Services.ConfigureOpenTelemetryMeterProvider(metrics =>
+        {
+            metrics.AddPrometheusExporter(); // GARANTE QUE O PROMETHEUS ESTÁ REGISTRADO
+        });
+
+        Debug.WriteLine("AQUIIIIIIIIIIIIIIIIII");
+
+        Debug.WriteLine("OTEL_EXPORTER_OTLP_ENDPOINT: " + builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+        Debug.WriteLine("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL: " + builder.Configuration["DOTNET_DASHBOARD_OTLP_ENDPOINT_URL"]);
+
+        Debug.WriteLine(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+
         var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+
+        Debug.WriteLine(useOtlpExporter);
 
         if (useOtlpExporter)
         {
@@ -95,6 +112,7 @@ public static partial class Extensions
 
         return builder;
     }
+
 
     public static IHostApplicationBuilder AddDefaultHealthChecks(this IHostApplicationBuilder builder)
     {
@@ -107,17 +125,13 @@ public static partial class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        // Uncomment the following line to enable the Prometheus endpoint (requires the OpenTelemetry.Exporter.Prometheus.AspNetCore package)
-        // app.MapPrometheusScrapingEndpoint();
+        // Ativar o endpoint para Prometheus
+        app.MapPrometheusScrapingEndpoint();
 
-        // Adding health checks endpoints to applications in non-development environments has security implications.
-        // See https://aka.ms/dotnet/aspire/healthchecks for details before enabling these endpoints in non-development environments.
         if (app.Environment.IsDevelopment())
         {
-            // All health checks must pass for app to be considered ready to accept traffic after starting
+            // Health Checks para monitoramento
             app.MapHealthChecks("/health");
-
-            // Only health checks tagged with the "live" tag must pass for app to be considered alive
             app.MapHealthChecks("/alive", new HealthCheckOptions
             {
                 Predicate = r => r.Tags.Contains("live")
