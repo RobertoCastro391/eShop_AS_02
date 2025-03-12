@@ -6,7 +6,7 @@ using Order = eShop.Ordering.API.Application.Queries.Order;
 
 public static class OrdersApi
 {
-    private static readonly ActivitySource ActivitySource = new("OrderingService");
+    private static readonly ActivitySource ActivitySource = new("Ordering.API");
 
     public static RouteGroupBuilder MapOrdersApiV1(this IEndpointRouteBuilder app)
     {
@@ -125,11 +125,14 @@ public static class OrdersApi
         [AsParameters] OrderServices services,
         Meter meter)
     {
-        using var activity = ActivitySource.StartActivity("Processing Order");
+        using var activity = ActivitySource.StartActivity("Processing Order API");
 
-        activity?.SetTag("user.id", request.UserId);
-        activity?.SetTag("order.total", request.Items.Sum(i => i.Quantity));
-        activity?.SetTag("http.request_id", requestId.ToString());
+        if (activity != null)
+        {
+            activity?.SetTag("user.id", request.UserId.Substring(0, 4) + "*****");
+            activity?.SetTag("order.total", request.Items.Sum(i => i.Quantity));
+            activity?.SetTag("http.request_id", requestId.ToString());
+        }
 
         //Create processing time histogram
         var orderProcessingTimeHistogram = meter.CreateHistogram<double>(
@@ -198,14 +201,14 @@ public static class OrdersApi
             if (result)
             {
                 orderProcessingTimeHistogram.Record(stopwatch.ElapsedMilliseconds);
-                orderPlacedCounter.Add(1, new KeyValuePair<string, object>("userId", request.UserId));
+                orderPlacedCounter.Add(1, new KeyValuePair<string, object>("userId", request.UserId.Substring(0, 4) + "*****"));
                 services.Logger.LogInformation("CreateOrderCommand succeeded - RequestId: {RequestId}", requestId);
             }
             else
             {
                 activity?.SetStatus(ActivityStatusCode.Error);
                 orderErrorRateHistogram.Record(100);
-                orderFailedCounter.Add(1, new KeyValuePair<string, object>("userId", request.UserId));
+                orderFailedCounter.Add(1, new KeyValuePair<string, object>("userId", request.UserId.Substring(0, 4) + "*****"));
                 services.Logger.LogWarning("CreateOrderCommand failed - RequestId: {RequestId}", requestId);
             }
 

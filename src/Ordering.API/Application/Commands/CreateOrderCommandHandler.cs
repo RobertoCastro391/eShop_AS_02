@@ -18,6 +18,7 @@ public class CreateOrderCommandHandler
     private readonly IMediator _mediator;
     private readonly IOrderingIntegrationEventService _orderingIntegrationEventService;
     private readonly ILogger<CreateOrderCommandHandler> _logger;
+    private static readonly ActivitySource ActivitySource = new("Ordering.API");
 
     //Define metrics inside the class
     private readonly Histogram<double> _orderValueHistogram;
@@ -43,9 +44,18 @@ public class CreateOrderCommandHandler
 
     public async Task<bool> Handle(CreateOrderCommand message, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
-
         Console.WriteLine("Processing order command started");
+        using var activity = ActivitySource.StartActivity("Processing Order", ActivityKind.Server);
+
+        if (activity != null)
+        {
+            activity.SetTag("user.id", message.UserId.Substring(0, 4) + "*****");
+            activity.SetTag("user.name", message.UserName.Substring(0, 2) + "*****");
+            activity.SetTag("order.total", message.OrderItems.Sum(item => item.UnitPrice * item.Units));
+            activity.SetTag("order.item_count", message.OrderItems.Count());
+        }
+        
+        var stopwatch = Stopwatch.StartNew();
 
         try
         {
@@ -71,13 +81,12 @@ public class CreateOrderCommandHandler
 
             var success = await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
             stopwatch.Stop();
-
-            Console.WriteLine("Processing order command completed in: " + stopwatch.ElapsedMilliseconds);
            
             return success;
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error);
             _logger.LogError(ex, "Order processing failed.");
             return false;
         }

@@ -26,7 +26,7 @@ builder.Services.AddOpenTelemetry()
             .AddAspNetCoreInstrumentation()
             .AddGrpcClientInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddSource("Basket.API")
+            .AddSource("Basket.API.BasketService")
             .AddOtlpExporter(otlpOptions =>
             {
                 otlpOptions.Endpoint = new Uri("http://localhost:4317");

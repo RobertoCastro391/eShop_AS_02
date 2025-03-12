@@ -2,7 +2,7 @@
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-
+using OpenTelemetry.Instrumentation.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +26,11 @@ builder.Services.AddOpenTelemetry()
             .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("Ordering.API"))
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation(options => // Ensure the correct using directive is added
+            {
+                options.SetDbStatementForText = true;  // Capture SQL queries
+                options.SetDbStatementForStoredProcedure = true;
+            })
             .AddSource("Ordering.API")
             .AddOtlpExporter(otlpOptions =>
             {
