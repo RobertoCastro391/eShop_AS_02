@@ -89,7 +89,7 @@ public static partial class Extensions
     {
         builder.Services.ConfigureOpenTelemetryMeterProvider(metrics =>
         {
-            metrics.AddPrometheusExporter(); // GARANTE QUE O PROMETHEUS ESTÁ REGISTRADO
+            metrics.AddPrometheusExporter();
         });
 
         var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
@@ -118,12 +118,11 @@ public static partial class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        // Ativar o endpoint para Prometheus
         app.MapPrometheusScrapingEndpoint();
 
         if (app.Environment.IsDevelopment())
         {
-            // Health Checks para monitoramento
+            // Health Checks
             app.MapHealthChecks("/health");
             app.MapHealthChecks("/alive", new HealthCheckOptions
             {
