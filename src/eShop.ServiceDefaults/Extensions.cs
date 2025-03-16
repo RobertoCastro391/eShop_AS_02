@@ -92,13 +92,6 @@ public static partial class Extensions
             metrics.AddPrometheusExporter(); // GARANTE QUE O PROMETHEUS ESTÁ REGISTRADO
         });
 
-        Debug.WriteLine("AQUIIIIIIIIIIIIIIIIII");
-
-        Debug.WriteLine("OTEL_EXPORTER_OTLP_ENDPOINT: " + builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
-        Debug.WriteLine("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL: " + builder.Configuration["DOTNET_DASHBOARD_OTLP_ENDPOINT_URL"]);
-
-        Debug.WriteLine(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
-
         var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
 
         Debug.WriteLine(useOtlpExporter);
