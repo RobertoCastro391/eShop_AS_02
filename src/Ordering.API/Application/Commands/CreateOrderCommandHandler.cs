@@ -37,9 +37,15 @@ public class CreateOrderCommandHandler
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _orderingIntegrationEventService = orderingIntegrationEventService ?? throw new ArgumentNullException(nameof(orderingIntegrationEventService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
-        _orderValueHistogram = meter.CreateHistogram<double>("average_order_value", "currency", "Average monetary value of placed orders.");
-        _totalEurosMade = meter.CreateCounter<long>("monetary_value_orders", "Total monetary value of orders");
+
+        // Create Histogram to track average order value
+        _orderValueHistogram = meter.CreateHistogram<double>("average_order_value", unit: "currency", 
+            description: "Average monetary value of placed orders.");
+
+        // Counter to track total monetary value of orders
+        _totalEurosMade = meter.CreateCounter<long>("monetary_value_orders", unit: "currency", 
+            description: "Total monetary value of orders");
+
     }
 
     public async Task<bool> Handle(CreateOrderCommand message, CancellationToken cancellationToken)
@@ -74,7 +80,8 @@ public class CreateOrderCommandHandler
             }
             
             _orderValueHistogram.Record((double)orderValue);
-            _totalEurosMade.Add((long)orderValue, new KeyValuePair<string, object>("userId", message.UserId));
+            _totalEurosMade.Add((long)orderValue, new KeyValuePair<string, object>("userId", message.UserId.Substring(0, 4) + "*****"));
+            
             _logger.LogInformation("Order placed successfully.");
 
             _orderRepository.Add(order);

@@ -21,8 +21,7 @@ public class OrderRepository
         activity?.SetTag("db.system", "mssql");
         activity?.SetTag("db.operation", "INSERT");
         activity?.SetTag("order.id", order.Id);
-        activity?.SetTag("order.user_id", order.BuyerId);
-        //activity?.SetTag("order.total", order.);
+        activity?.SetTag("order.user_id", order.BuyerId?.ToString().Substring(0,4) + "****");
 
         var newOrder = _context.Orders.Add(order).Entity;
         activity?.SetStatus(ActivityStatusCode.Ok);
@@ -33,7 +32,7 @@ public class OrderRepository
 
     public async Task<Order> GetAsync(int orderId)
     {
-        
+
         using var activity = ActivitySource.StartActivity("Retrieve Order from DB");
 
         activity?.SetTag("db.system", "mssql");

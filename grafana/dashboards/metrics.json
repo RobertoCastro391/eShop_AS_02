@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 1,
   "links": [],
   "panels": [
     {
@@ -396,7 +396,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "(sum(monetary_value_orders_Total_monetary_value_of_orders_total) or vector(0))/ (sum(order_placed_total) or vector(0))",
+          "expr": "sum(monetary_value_orders_currency_total) / sum(order_placed_total)",
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "legendFormat": "__auto",
@@ -477,7 +477,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum(monetary_value_orders_Total_monetary_value_of_orders_total) or vector(0)",
+          "expr": "sum(monetary_value_orders_currency_total) or vector(0)",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": false,
@@ -705,6 +705,6 @@
   "timezone": "browser",
   "title": "Metrics",
   "uid": "beeyzkbswdce8s",
-  "version": 15,
+  "version": 1,
   "weekStart": ""
 }

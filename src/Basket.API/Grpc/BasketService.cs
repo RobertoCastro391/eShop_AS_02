@@ -16,6 +16,7 @@ public class BasketService(
 
     private static readonly ActivitySource ActivitySource = new("Basket.API.BasketService");
 
+    // Counter to track the number of baskets created
     private readonly Counter<long> BasketCreatedCounter =
         meter.CreateCounter<long>("basket_created_count", description: "Number of baskets created or updated.");
 

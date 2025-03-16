@@ -25,7 +25,9 @@ public class OrderStatusChangedToPaidDomainEventHandler : INotificationHandler<O
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _buyerRepository = buyerRepository ?? throw new ArgumentNullException(nameof(buyerRepository));
         _orderingIntegrationEventService = orderingIntegrationEventService ?? throw new ArgumentNullException(nameof(orderingIntegrationEventService));
-        _orderPaymentProcessingTime = meter.CreateHistogram<double>("payment_processing_time_ms", unit: "ms", description: "Time taken to process a payment."
+        
+        _orderPaymentProcessingTime = meter.CreateHistogram<double>("payment_processing_time_ms", unit: "ms", 
+            description: "Time taken to process a payment."
         );
     }
 
